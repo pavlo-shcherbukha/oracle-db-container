@@ -1,0 +1,44 @@
+{
+"rows": [
+  {
+    "artist_en": "Pablo Picasso",
+    "artist_ua": "Пабло Пікассо",
+    "photo_url": "https://commons.wikimedia.org/wiki/File:Pablo_Picasso,_1962.jpg",
+    "work_url": "https://en.wikipedia.org/wiki/Guernica#/media/File:Guernica_by_Picasso.jpg",
+    "work_title_en": "Guernica",
+    "work_title_ua": "Герніка"
+  },
+  {
+    "artist_en": "Salvador Dalí",
+    "artist_ua": "Сальвадор Далі",
+    "photo_url": "https://commons.wikimedia.org/wiki/File:Salvador_Dali_NYWTS.jpg",
+    "work_url": "https://en.wikipedia.org/wiki/The_Persistence_of_Memory#/media/File:The_Persistence_of_Memory.jpg",
+    "work_title_en": "The Persistence of Memory",
+    "work_title_ua": "Сталість пам'яті"
+  },
+  {
+    "artist_en": "Francisco Goya",
+    "artist_ua": "Франсіско Гойя",
+    "photo_url": "https://commons.wikimedia.org/wiki/File:Vicente_Lopez_y_Portana_-_Portrait_of_Francisco_Goya.jpg",
+    "work_url": "https://commons.wikimedia.org/wiki/File:El_tres_de_mayo_de_1808_en_Madrid_-_Museo_del_Prado.jpg",
+    "work_title_en": "The Third of May 1808",
+    "work_title_ua": "Третього травня 1808 року в Мадриді"
+  },
+  {
+    "artist_en": "Diego Velázquez",
+    "artist_ua": "Дієго Веласкес",
+    "photo_url": "https://commons.wikimedia.org/wiki/File:Autorretrato_de_Velázquez_en_Las_Meninas.jpg",
+    "work_url": "https://commons.wikimedia.org/wiki/File:Las_Meninas,_by_Diego_Velázquez,_from_Prado_in_Google_Earth.jpg",
+    "work_title_en": "Las Meninas",
+    "work_title_ua": "Меніни"
+  },
+  {
+    "artist_en": "Joan Miró",
+    "artist_ua": "Жоан Міро",
+    "photo_url": "https://commons.wikimedia.org/wiki/File:Joan_Miro_at_Tate,_1964.jpg",
+    "work_url": "https://en.wikipedia.org/wiki/The_Farm_(Mir%C3%B3)#/media/File:The_Farm_by_Joan_Miro.jpg",
+    "work_title_en": "The Farm",
+    "work_title_ua": "Ферма"
+  }
+]
+}
