@@ -1,0 +1,458 @@
+[
+    {
+        "id": "987bf94a8df6c8d5",
+        "type": "tab",
+        "label": "read-upload-blobs",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "d3f99de4283c5ad5",
+        "type": "tab",
+        "label": "process-StorageQueue-Msg",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "663f2b952f5976e1",
+        "type": "shazbstorage-config",
+        "configname": "azbstrg-dev",
+        "azure_tenant_id": "Add your value",
+        "azure_client_id": "Add your value",
+        "azure_client_secret": "Add your value",
+        "azure_storage_account_name": "custstrgsrvc"
+    },
+    {
+        "id": "f51ee006803b9cf8",
+        "type": "function",
+        "z": "987bf94a8df6c8d5",
+        "name": "PrepareQuery",
+        "func": "const oracledb = global.get('oracledb');\n\nif (!oracledb) {\n    // Обробка помилки, якщо модуль не був завантажений\n    node.error(\"Модуль 'oracledb' не знайдено в functionGlobalContext.\");\n    return null;\n} else {\n    if (msg.payload.custid && msg.payload.iddoc ) { \n        msg.payload.query =`SELECT A.CUSTID, A.CUSTTYPE, A.CUSTNAME, B.TYPEDOC, B.ISACRUAL, F.FILE_NAME, B.IDDOC, F.IDFL\n        FROM CUSTDOC.CUST$CUST  A\n        JOIN CUSTDOC.CUST$DOCS B ON B.CUSTID=A.CUSTID\n        JOIN CUSTDOC.CUST$DOCS$ATTACH  F ON F.IDDOC=B.IDDOC\n        WHERE A.CUSTID = :custid AND B.IDDOC=:iddoc AND B.ISACRUAL='Y'`\n        return msg;\n    } else {\n        return null\n    }\n}\n\n\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 140,
+        "y": 260,
+        "wires": [
+            [
+                "086868aa900ae22d",
+                "e30286d0ed6aa8a5"
+            ]
+        ]
+    },
+    {
+        "id": "80a8f8baf5be97b4",
+        "type": "inject",
+        "z": "987bf94a8df6c8d5",
+        "name": "StartRun",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.0",
+        "topic": "READBLOBS",
+        "payload": "{\"start\":\"RUN\"}",
+        "payloadType": "json",
+        "x": 100,
+        "y": 120,
+        "wires": [
+            [
+                "143f6ca70e330716"
+            ]
+        ]
+    },
+    {
+        "id": "086868aa900ae22d",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG1",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 190,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "e30286d0ed6aa8a5",
+        "type": "function",
+        "z": "987bf94a8df6c8d5",
+        "name": "ExecuteQury",
+        "func": "// Function Node code\nconst oracledb = global.get('oracledb');\n//const util = global.get('util');\n\n// Конфігурація підключення\n//CUSTDOC/******@localhost:1521/XEPDB1\nconst dbConfig = {\n    user: \"CUSTDOC\",\n    password: \"******\",\n    connectString: \"localhost:1521/XEPDB1\" // Thin Mode format: \"myhost.com:1521/myservice\"\n};\n\n// Асинхронна обгортка для виконання запиту\nasync function executeQuery(msg) {\n    if (!oracledb) {\n        msg.payload = { error: \"oracledb is not loaded.\" };\n        return msg;\n    }\n\n    let connection;\n    try {\n\n        if (msg.payload.custid && msg.payload.iddoc && msg.payload.query) { \n            // 1. Отримання з'єднання\n            connection = await oracledb.getConnection(dbConfig);\n            msg.custid = msg.payload.custid;\n            msg.iddoc = msg.payload.iddoc;\n            // 2. Виконання запиту (приклад)\n            const binds = {\n                custid: msg.payload.custid,\n                iddoc: msg.payload.iddoc\n            };\n\n            const result = await connection.execute(\n                msg.payload.query,\n                binds \n            );\n            \n            // 3. Результат у msg.payload\n            msg.payload = result.rows;\n\n            return msg;\n        } else {\n            return null;\n        }    \n        \n    } catch (err) {\n        // Обробка помилок\n        const errorMessage = util.inspect(err);\n        node.error(`Oracle DB Error: ${errorMessage}`, msg);\n        msg.payload = { error: errorMessage };\n        return msg;\n    } finally {\n        // 4. Обов'язкове закриття з'єднання\n        if (connection) {\n            try {\n                await connection.close();\n            } catch (err) {\n                node.warn(`Error closing connection: ${err.message}`);\n            }\n        }\n    }\n}\n\n// Повернення Promise для асинхронного виконання\nreturn executeQuery(msg);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 240,
+        "wires": [
+            [
+                "ab7ccb23a77e3fb6",
+                "69803dbc132910b6"
+            ]
+        ]
+    },
+    {
+        "id": "ab7ccb23a77e3fb6",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG2",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 370,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "69803dbc132910b6",
+        "type": "split",
+        "z": "987bf94a8df6c8d5",
+        "name": "SplitArrayToItems",
+        "splt": "\\n",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "topic",
+        "property": "payload",
+        "x": 590,
+        "y": 240,
+        "wires": [
+            [
+                "89ca99f5f1c951b7",
+                "a810d978fe01370b"
+            ]
+        ]
+    },
+    {
+        "id": "89ca99f5f1c951b7",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG3",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 570,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "a810d978fe01370b",
+        "type": "function",
+        "z": "987bf94a8df6c8d5",
+        "name": "readBlob",
+        "func": "// Function Node code\nconst oracledb = global.get('oracledb');\nconst stream = global.get('stream')\n//const util = global.get('util');\n\n// Конфігурація підключення\n//CUSTDOC/******@localhost:1521/XEPDB1\nconst dbConfig = {\n    user: \"CUSTDOC\",\n    password: \"******\",\n    connectString: \"localhost:1521/XEPDB1\" // Thin Mode format: \"myhost.com:1521/myservice\"\n};\n\nfunction streamToBuffer(lobStream) {\n    if (!lobStream || !lobStream.pipe) {\n        // Якщо це не потік, повертаємо те, що є (можливо, це вже Buffer)\n        return Promise.resolve(lobStream);\n    }\n\n    return new Promise((resolve, reject) => {\n        const chunks = [];\n        lobStream.on('error', reject);\n        lobStream.on('data', chunk => chunks.push(chunk));\n        lobStream.on('end', () => resolve(Buffer.concat(chunks)));\n    }).finally(() => {\n        // Важливо: закриваємо LOB-об'єкт, щоб звільнити ресурси Oracle\n        if (lobStream) {\n            lobStream.close().catch(e => node.warn(\"Error closing LOB stream: \" + e.message));\n        }\n    });\n}\n// Асинхронна обгортка для виконання запиту\nasync function readBlob(msg) {\n    let connection;\n    try {\n        connection = await oracledb.getConnection(dbConfig);\n\n\n        const sql = `SELECT A.FILE_CONTENT \n                     FROM CUSTDOC.CUST$DOCS$ATTACH A\n                     WHERE A.IDFL=:idfl`;\n        const file_name = msg.payload[5]    \n        const customerid = msg.payload[0]\n        const documentid = msg.payload[6].toString()\n        const fileid = msg.payload[7].toString()  \n        const isactual = msg.payload[4]            \n        const result = await connection.execute(\n            sql,\n            { idfl: msg.payload[7] },\n            { outFormat: oracledb.OUT_FORMAT_OBJECT }\n        );\n\n        if (result.rows.length === 0) {\n            msg.payload = { status: \"Error\", message: \"Record not found.\" };\n            return msg;\n        }\n\n        // 1. Отримуємо LOB-об'єкт (або Buffer)\n        const row = result.rows[0];\n        const lobOrBuffer = row.FILE_CONTENT;\n\n        // 2. ⚡️ ЧИТАЄМО ПОТІК У БУФЕР (якщо це потік)\n        const finalBuffer = await streamToBuffer(lobOrBuffer);\n\n        if (Buffer.isBuffer(finalBuffer)) {\n\n            // 3. Кодуємо Buffer у Base64\n            const base64Data = finalBuffer.toString('base64');\n\n            msg.containerName = 'cust-doc';\n            msg.blobName = file_name;\n            msg.payload = finalBuffer;\n            msg.blobMetadata = {\n                customerid: customerid,\n                documentid: documentid,\n                fileid: fileid,\n                isactual: isactual\n            }\n            /*\n            msg.payload = {\n                status: \"Success\",\n                file_name: file_name,\n                base64_data: base64Data,\n                buffer_size: finalBuffer.length\n            };\n            */\n        } else {\n            // Це може трапитися, якщо LOB був невірний або порожній\n            msg.payload = { status: \"Error\", message: \"Failed to read data into Buffer.\" };\n        }\n\n        return msg;\n\n    } catch (err) {\n        node.error(\"BLOB SELECT failed: \" + util.inspect(err), msg);\n        msg.payload = { error: \"BLOB SELECT failed\" };\n        // ... (rollback та close)\n\n    } finally {\n        if (connection) {\n            await connection.close();\n        }\n    }\n}\n\nreturn readBlob(msg);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 140,
+        "y": 340,
+        "wires": [
+            [
+                "584f75a464707db6",
+                "53f21ce97824196a"
+            ]
+        ]
+    },
+    {
+        "id": "584f75a464707db6",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG4",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 270,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "53f21ce97824196a",
+        "type": "shazbstorage-upload",
+        "z": "987bf94a8df6c8d5",
+        "name": "az_uploads",
+        "configname": "663f2b952f5976e1",
+        "containerName": "cust-doc",
+        "blobName": "",
+        "x": 370,
+        "y": 360,
+        "wires": [
+            [
+                "0873f7786389a6fd",
+                "fd997e764db9a0d7"
+            ]
+        ]
+    },
+    {
+        "id": "0873f7786389a6fd",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG05",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 420,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "143f6ca70e330716",
+        "type": "function",
+        "z": "987bf94a8df6c8d5",
+        "name": "findMigrRecords",
+        "func": "const oracledb = global.get('oracledb');\n\nconst dbConfig = {\n    user: \"CUSTDOC\",\n    password: \"******\",\n    connectString: \"localhost:1521/XEPDB1\" // Thin Mode format: \"myhost.com:1521/myservice\"\n};\n\n// Async esecution of SQL statement\nasync function executeQuery(msg) {\n    if (!oracledb) {\n        msg.payload = { error: \"oracledb is not loaded.\" };\n        return msg;\n    }\n\n    let connection;\n    try {\n        connection = await oracledb.getConnection(dbConfig);\n        let sql=`SELECT A.CUSTID, A.IDDOC FROM CUSTDOC.CUST$DOCS  A \n        WHERE NOT EXISTS( SELECT 1 FROM CUSTDOC.CUST$DOCS$URLS B WHERE  B.IDDOC=A.IDDOC) \n        AND ISACRUAL='Y'\n        AND ROWNUM=1`\n\n        const result = await connection.execute(\n            sql\n        );\n        if (result.rows.length === 0) {\n            node.warn(`No recors found!!!`);\n            return null;\n        }\n        const row = result.rows[0];\n        \n        msg.payload.custid = row[0];\n        msg.payload.iddoc = row[1];\n        \n        if (msg.payload.start) {\n            delete msg.payload.start;\n        }\n        return msg;\n        \n    } catch (err) {\n        const errorMessage = util.inspect(err);\n        node.error(`Oracle DB Error: ${errorMessage}`, msg);\n        msg.payload = { error: errorMessage };\n        return msg;\n    } finally {\n            if (connection) {\n            try {\n                await connection.close();\n            } catch (err) {\n                node.warn(`Error closing connection: ${err.message}`);\n            }\n        }\n    }\n}\n\n// Повернення Promise для асинхронного виконання\nreturn executeQuery(msg);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 300,
+        "y": 120,
+        "wires": [
+            [
+                "234cc057918786ef",
+                "f51ee006803b9cf8"
+            ]
+        ]
+    },
+    {
+        "id": "234cc057918786ef",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG-0",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 290,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "fd997e764db9a0d7",
+        "type": "function",
+        "z": "987bf94a8df6c8d5",
+        "name": "MarkRecordSent",
+        "func": "// Function Node code\nconst oracledb = global.get('oracledb');\n\nconst dbConfig = {\n    user: \"CUSTDOC\",\n    password: \"******\",\n    connectString: \"localhost:1521/XEPDB1\" \n};\n\n// Асинхронна обгортка для виконання запиту\nasync function executeQuery(msg) {\n    if (!oracledb) {\n        msg.payload = { error: \"oracledb is not loaded.\" };\n        return msg;\n    }\n\n    let connection;\n    try {\n        connection = await oracledb.getConnection(dbConfig);\n        const sql = ` UPDATE CUSTDOC.CUST$DOCS\n                      SET ISACRUAL = 'N'\n                      WHERE IDDOC=:iddoc`;\n                     \n                     \n        const binds = {\n            iddoc: msg.iddoc \n        };\n\n        const result = await connection.execute(\n            sql,\n            binds\n        );\n\n        connection.commit();\n        msg.payload.iddoc=msg.iddoc;\n        msg.payload.msg='Sent';\n        return msg;\n\n    } catch (err) {\n        const errorMessage = util.inspect(err);\n        node.error(`Oracle DB Error: ${errorMessage}`, msg);\n        msg.payload = { error: errorMessage };\n        return msg;\n    } finally {\n        if (connection) {\n            try {\n                await connection.close();\n            } catch (err) {\n                node.warn(`Error closing connection: ${err.message}`);\n            }\n        }\n    }\n}\n\n// Повернення Promise для асинхронного виконання\nreturn executeQuery(msg);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 360,
+        "wires": [
+            [
+                "0ffae53c4e74f9f5"
+            ]
+        ]
+    },
+    {
+        "id": "0ffae53c4e74f9f5",
+        "type": "debug",
+        "z": "987bf94a8df6c8d5",
+        "name": "DBG6",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 630,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "6b45e9234e7bbd99",
+        "type": "comment",
+        "z": "987bf94a8df6c8d5",
+        "name": "Read Blob From Oracle Database and Upload on az Blob Storage",
+        "info": "",
+        "x": 310,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ee7b13c1758f8361",
+        "type": "debug",
+        "z": "d3f99de4283c5ad5",
+        "name": "QUEUEDBG",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 570,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "a2f5d2e4d2e5be9a",
+        "type": "inject",
+        "z": "d3f99de4283c5ad5",
+        "name": "ReadQue",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 220,
+        "wires": [
+            [
+                "174f6b634526fc02"
+            ]
+        ]
+    },
+    {
+        "id": "174f6b634526fc02",
+        "type": "shazstrgqueue-receiver",
+        "z": "d3f99de4283c5ad5",
+        "name": "readerQ",
+        "configname": "663f2b952f5976e1",
+        "queueName": "blob-processing-queue",
+        "maxMessages": "2",
+        "visibilityTimeout": "10",
+        "x": 320,
+        "y": 220,
+        "wires": [
+            [
+                "7c4fc358fdae42bd"
+            ]
+        ]
+    },
+    {
+        "id": "7c4fc358fdae42bd",
+        "type": "split",
+        "z": "d3f99de4283c5ad5",
+        "name": "sendSingleMessage",
+        "splt": "\\n",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "",
+        "property": "payload",
+        "x": 560,
+        "y": 220,
+        "wires": [
+            [
+                "ee7b13c1758f8361",
+                "09afca04d15be10a"
+            ]
+        ]
+    },
+    {
+        "id": "09afca04d15be10a",
+        "type": "function",
+        "z": "d3f99de4283c5ad5",
+        "name": "StoreToDabaBase",
+        "func": "// Function Node code\nconst oracledb = global.get('oracledb');\n\nconst dbConfig = {\n    user: \"CUSTDOC\",\n    password: \"******\",\n    connectString: \"localhost:1521/XEPDB1\" \n};\n\n// Асинхронна обгортка для виконання запиту\nasync function executeQuery(msg) {\n    if (!oracledb) {\n        msg.payload = { error: \"oracledb is not loaded.\" };\n        return msg;\n    }\n\n    let connection;\n    try {\n        connection = await oracledb.getConnection(dbConfig);\n        const sql = `INSERT INTO CUSTDOC.CUST$DOCS$URLS\n                     (IDFL, IDDOC, FILE_NAME, CONTAINER_NAME, CONTENT_TYPE, FILE_SIZE, FILE_URL)\n                     VALUES\n                     (:idfl, :iddoc, :blobname, :container_name, :content_type, :blob_size, :blob_url )`; \n                     \n        const binds = {\n            idfl: msg.payload.queueMessageBody.customMetadata.fileid, \n            iddoc: msg.payload.queueMessageBody.customMetadata.documentid ,\n            blobname: msg.payload.queueMessageBody.blobName, \n            container_name: msg.payload.queueMessageBody.containerName,  \n            content_type: msg.payload.queueMessageBody.contentType, \n            blob_size: msg.payload.queueMessageBody.blobSize,\n            blob_url: msg.payload.queueMessageBody.blobUrl\n        };\n\n        const result = await connection.execute(\n            sql,\n            binds\n        );\n\n        connection.commit();\n        msg.payload.ok = true;\n        msg.payload.text = 'Record migrated';\n        return msg;\n\n    } catch (err) {\n        const errorMessage = util.inspect(err);\n        node.error(`Oracle DB Error: ${errorMessage}`, msg);\n        msg.payload = { error: errorMessage };\n        return msg;\n    } finally {\n        if (connection) {\n            try {\n                await connection.close();\n            } catch (err) {\n                node.warn(`Error closing connection: ${err.message}`);\n            }\n        }\n    }\n}\n\n// Повернення Promise для асинхронного виконання\nreturn executeQuery(msg);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 210,
+        "y": 320,
+        "wires": [
+            [
+                "9d35cf2f6105f437"
+            ]
+        ]
+    },
+    {
+        "id": "9d35cf2f6105f437",
+        "type": "debug",
+        "z": "d3f99de4283c5ad5",
+        "name": "DBGORCL",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 250,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "5dfec7ccc262ddf4",
+        "type": "comment",
+        "z": "d3f99de4283c5ad5",
+        "name": "Pooling az Storage Queue, receive messages and sore  in Oracle DB",
+        "info": "",
+        "x": 300,
+        "y": 60,
+        "wires": []
+    }
+]

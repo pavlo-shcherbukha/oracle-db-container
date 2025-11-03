@@ -1,0 +1,17 @@
+{
+  "name": "nodered-srvc",
+  "version": "1.0.0",
+  "description": "node-red integration with oracle xe",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node  node_modules/node-red/red.js --settings ./settings.js --userDir .  --port 1880 --verbose flow-orcl-1.json"
+  },
+  "author": "pasha",
+  "license": "ISC",
+  "dependencies": {
+    "node-red": "^4.1.1",
+    "oracledb": "^6.10.0",
+    "shazblob": "file:shazblob"
+  }
+}

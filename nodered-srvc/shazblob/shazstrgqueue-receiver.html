@@ -1,0 +1,49 @@
+<script type="text/javascript">
+    RED.nodes.registerType('shazstrgqueue-receiver',{
+        category: 'shAzureBlobStorage',
+        color: '#FF8C00',
+        defaults: {
+            name: { value: ''  },
+            configname: { type: 'shazbstorage-config', required: true},
+            queueName: {  value: '', required: false },
+            maxMessages: {  value: 1, required: false },
+            visibilityTimeout: {  value: 30, required: false },
+
+        },
+        inputs: 1,
+        outputs: 1,
+        label: function() {
+            if (this.name) return this.name;
+            return 'shazstrgqueue-receiver';
+        },
+
+        icon: 'font-awesome/fa-list-ol',
+    });
+</script>
+
+<script type="text/html" data-template-name="shazstrgqueue-receiver">
+
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name </label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-configname"><i class="fa fa-wrench"></i> Config</label>
+        <input id="node-input-configname">
+    </div>
+    <div class="form-row">
+        <label for="node-input-queueName"><i class="fa fa-tag"></i> Queue name </label>
+        <input type="text" id="node-input-queueName" placeholder="queue name">
+    </div>
+        <div class="form-row">
+        <label for="node-input-maxMessages"><i class="fa fa-tag"></i>Number of messages per one read</label>
+        <input type="number" id="node-input-maxMessages" placeholder="Number of messages" min="1" max="32" value="1">
+    </div>
+    </div>
+        <div class="form-row">
+        <label for="node-input-visibilityTimeout"><i class="fa fa-tag"></i>Number of seconds when message invisioble</label>
+        <input type="number" id="node-input-visibilityTimeout" placeholder="Number of seconds" min="1" max="604800" value="30">
+    </div>    
+</script>
+
