@@ -321,6 +321,18 @@ jupyter notebook
 <kbd><img src="doc/pic-03.png" /></kbd>
 <p style="text-align: center;"><a name="pic-03">pic-03</a></p>
 
+Першою особливістю цього потоку є те, що він інтегрується  з базою даних ORACKLE через Login Password. Взаємодіючи з базою даних  читає оновлюєє записи, а тако ж читає та передає на подальшу обробку  за бази даних Blob  поле. При вичитуванні з БД Blob  поле являє собою stream і його треба прочитати та перетворити в buffer.
+
+Другою особливісю цього потоку є те, що використана власна Node  для завантаження файлів на Azure Blob Storage. Використання власної Node  пов'язана з тим, що в більшості існуючих аутентифікація додатка виконується через логін/пароль користуача. Але ж Node-Red   не є людиною і для цього випадку в AZURE  є авторизація Service Principal.
+
+Service Principal - це метод авторизації, що використовується для програмної аутентифікації (не для особи, а прошграми) з використанням EntraID. По факту реєсрується додаток в EntraID вибирається метод авторизації:
+
+- через client secret
+- за допомогою certificate (.pem чи .pfx) Далі зареєсровоаму додатку можна надати ролі такі ж як і звичайному користувачу 
+
+1. [Application (App) registration in Microsoft Entra ID](https://learn.microsoft.com/en-us/training/modules/register-apps-use-microsoft-entra-id/2-plan-app-registration).
+2. [Authorize access for AzCopy with a service principal. Verify role assignments](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-authorize-service-principal?toc=%2Fazure%2Fstorage%2Fblobs%2Ftoc.json&bc=%2Fazure%2Fstorage%2Fblobs%2Fbreadcrumb%2Ftoc.json&tabs=windows#verify-role-assignments)
+
 
 
 ### Flow: process-StorageQueue-Msg - process-StorageQueue-Msg Читає повідомлення із Azure Storage Queue  та записує елементи повідомлення в базу даних oracle (робить insert  в таблицю)
@@ -508,3 +520,118 @@ return executeQuery(msg);
 
 Також, у flow read-upload-blobs в Node "readBlob" показано як прочитати Blolb поле з БД та трансформувати його в прийнятний для Node-Red (Node.js) тип Bufer.
 Бібліотка значення поля передає як streem,  і його треба вичитати та перетворити до Node Buffer.
+
+
+### Взаємодія з azure Blob Storage
+
+Node "az_uploads" є custom node, тобто індивідуально розробленою для цього проекту. Складається з конфігураційної [pic-05](#pic-05) і операційної [pic-06](#pic-06):
+
+<kbd><img src="doc/pic-05.png" /></kbd>
+<p style="text-align: center;"><a name="pic-05">pic-05</a></p>
+
+
+<kbd><img src="doc/pic-06.png" /></kbd>
+<p style="text-align: center;"><a name="pic-06">pic-06</a></p>
+
+
+Конфігураційна Node  вимагає налаштування таких параметрів:
+- tenant_id - ідентифікатор вашої Entra ID
+- client_id - ідентифікатор вашого додатку, зареєстрованого як ServicePrinsipal в EntraID
+- client_secret - Secret, що згенерований вашому додатку при реєстрації як ServicePrinsipal в EntraID
+- storage_account_name - Найменування вашого Storage Account,  де створено Azure blob storage 
+
+Для того, щоб Node  могла завантажувати файли на Blob Storage  зареєстрованому в EntraID  додатку потрібно видати  відповідні ролі: **Storage Blob Data Contributor** або **Storage Blob Data Owner (Blob Storage)** або **Storage File Data Privileged Contributor (Azure Files)**.
+Особисто я використав **Storage Blob Data Contributor**.
+
+
+- Знаходимо іконку в Entra ID
+
+<kbd><img src="doc/pic-07.png" /></kbd>
+<p style="text-align: center;"><a name="pic-07">pic-07</a></p>
+
+- Знаходимо меню "App registration"  та створюємо нову реєстрацію
+
+<kbd><img src="doc/pic-08.png" /></kbd>
+<p style="text-align: center;"><a name="pic-08">pic-08</a></p>
+
+- Вводимо назву application та натискаємо кнопку реєстрації
+
+<kbd><img src="doc/pic-09.png" /></kbd>
+<p style="text-align: center;"><a name="pic-09">pic-09</a></p>
+
+- В результаті реєстраціє отримуємо application id  та tenant id.  Після цього переходимо до створення client secret
+
+<kbd><img src="doc/pic-10.png" /></kbd>
+<p style="text-align: center;"><a name="pic-10">pic-10</a></p>
+
+- Створюємо клієнт secret
+
+<kbd><img src="doc/pic-11.png" /></kbd>
+<p style="text-align: center;"><a name="pic-11">pic-11</a></p>
+
+- При створенні, вказуємо опис secret  та термін дії і натискаємо кнопу створення
+
+<kbd><img src="doc/pic-12.png" /></kbd>
+<p style="text-align: center;"><a name="pic-12">pic-12</a></p>
+
+- Червоним показано створений secret  і кнопка, що дозволяє його скопіювати
+
+<kbd><img src="doc/pic-13.png" /></kbd>
+<p style="text-align: center;"><a name="pic-13">pic-13</a></p>
+
+Наступним кроком є  призначення потрібних ролей на з тільки що  зареєстрований додаток.
+В моєму випадку, додатку потрібно призначити роль: **Storage Blob Data Contributor**.
+
+- Заходимо в Storage Account  в меню Access Control (IAM) і призначаємо роль тільки що зареєстрованому додатку
+
+<kbd><img src="doc/pic-14.png" /></kbd>
+<p style="text-align: center;"><a name="pic-14">pic-14</a></p>
+
+
+- У вкладці "Roles" знаходимо відповідну роль (пошук дуже допомагає)
+
+<kbd><img src="doc/pic-15.png" /></kbd>
+<p style="text-align: center;"><a name="pic-15">pic-15</a></p>
+
+- Переходимо на вкладку "Members" і пробуємо знайти наш додаток
+
+<kbd><img src="doc/pic-16.png" /></kbd>
+<p style="text-align: center;"><a name="pic-16">pic-16</a></p>
+
+- Тут потрібно звернути увагу, що member Service Pricipal  знаходяться тільки пошуком і тільки якщо точно знаєш почтакові символи в назві. просто так вони не відображаються. І на знайденого member  треба явно клікнути мишкою.
+
+<kbd><img src="doc/pic-17.png" /></kbd>
+<p style="text-align: center;"><a name="pic-17">pic-17</a></p>
+
+- В результаті успішного вибору побачимо такий реєстраційний запис. Залишилося тільки виконати "Review + Assign"  
+
+<kbd><img src="doc/pic-18.png" /></kbd>
+<p style="text-align: center;"><a name="pic-18">pic-18</a></p>
+
+
+- Перевіряємо що  роль точно призначена. Для цього заходимо в "View Access to this Resource"
+
+<kbd><img src="doc/pic-19.png" /></kbd>
+<p style="text-align: center;"><a name="pic-19">pic-19</a></p>
+
+- Переконуємося, що доступ присутній
+
+<kbd><img src="doc/pic-20.png" /></kbd>
+<p style="text-align: center;"><a name="pic-20">pic-20</a></p>
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+  
+
+ 

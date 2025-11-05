@@ -321,6 +321,18 @@ And, before working,
 <kbd><img src="doc/pic-03.png" /></kbd>
 <p style="text-align: center;"><a name="pic-03">pic-03</a></p>
 
+The first feature of this flow is that it integrates with the ORACKLE database via Login Password. Interacting with the database, it reads and updates records, and also reads and transfers the Blob field for further processing to the database. When reading from the Blob database, the field is a stream and must be read and converted to a buffer.
+
+The second feature of this flow is that its own Node is used to upload files to Azure Blob Storage. The use of its own Node is due to the fact that in most existing ones, application authentication is performed via the user's login/password. But Node-Red is not a person and for this case, AZURE has Service Principal authorization.
+
+Service Principal is an authorization method used for programmatic authentication (not for a person, but for a program) using EntraID. After the application is registered in EntraID, the authorization method is selected:
+
+- via client secret
+
+- using a certificate (.pem or .pfx) Then the registered application can be assigned the same roles as a regular user
+
+1. [Application (App) registration in Microsoft Entra ID](https://learn.microsoft.com/en-us/training/modules/register-apps-use-microsoft-entra-id/2-plan-app-registration).
+2. [Authorize access for AzCopy with a service principal. Verify role assignments](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-authorize-service-principal?toc=%2Fazure%2Fstorage%2Fblobs%2Ftoc.json&bc=%2Fazure%2Fstorage%2Fblobs%2Fbreadcrumb%2Ftoc.json&tabs=windows#verify-role-assignments)
 
 
 ### Flow: process-StorageQueue-Msg - process-StorageQueue-Msg Читає повідомлення із Azure Storage Queue  та записує елементи повідомлення в базу даних oracle (робить insert  в таблицю)
@@ -510,3 +522,103 @@ return executeQuery(msg);
 ```
 
 Also, the read-upload-blobs flow in Node "readBlob" shows how to read a Blolb field from the database and transform it into a Buffer type acceptable to Node-Red (Node.js). The library passes the field value as a stream, and it needs to be read and converted to a Node Buffer.
+
+
+### Ineraction with Azure Blob Storage
+
+
+The "az_uploads" node is a custom node, i.e. individually developed for this project. It consists of a configuration [pic-05](#pic-05) and an operational [pic-06](#pic-06):
+
+<kbd><img src="doc/pic-05.png" /></kbd>
+<p style="text-align: center;"><a name="pic-05">pic-05</a></p>
+
+
+
+
+<kbd><img src="doc/pic-06.png" /></kbd>
+<p style="text-align: center;"><a name="pic-06">pic-06</a></p>
+
+
+The Node configuration requires the following parameters to be set:
+- tenant_id - the identifier of your Entra ID
+- client_id - the identifier of your application registered as a ServicePrincipal in EntraID
+- client_secret - The secret generated for your application when registering as a ServicePrincipal in EntraID
+- storage_account_name - The name of your Storage Account where Azure blob storage is created
+
+In order for Node to be able to upload files to Blob Storage, the application registered in EntraID must be granted the appropriate roles: **Storage Blob Data Contributor** or **Storage Blob Data Owner (Blob Storage)** or **Storage File Data Privileged Contributor (Azure Files)**.
+Personally, I used **Storage Blob Data Contributor**.
+
+- Find the icon in Entra ID
+
+<kbd><img src="doc/pic-07.png" /></kbd>
+<p style="text-align: center;"><a name="pic-07">pic-07</a></p>
+
+- Find the "App registration" menu and create a new registration
+
+<kbd><img src="doc/pic-08.png" /></kbd>
+<p style="text-align: center;"><a name="pic-08">pic-08</a></p>
+
+- Enter the name of the application and click the registration button
+
+<kbd><img src="doc/pic-09.png" /></kbd>
+<p style="text-align: center;"><a name="pic-09">pic-09</a></p>
+
+- As a result of registration, we get application id and tenant id. After that, we proceed to create client secret
+
+<kbd><img src="doc/pic-10.png" /></kbd>
+<p style="text-align: center;"><a name="pic-10">pic-10</a></p>
+
+- Create a client secret
+
+<kbd><img src="doc/pic-11.png" /></kbd>
+<p style="text-align: center;"><a name="pic-11">pic-11</a></p>
+
+- When creating a client secret, specify the secret description and expiration date and click the create button
+
+<kbd><img src="doc/pic-12.png" /></kbd>
+<p style="text-align: center;"><a name="pic-12">pic-12</a></p>
+
+- The created secret and the button that allows you to copy it are shown in red
+
+<kbd><img src="doc/pic-13.png" /></kbd>
+<p style="text-align: center;"><a name="pic-13">pic-13</a></p>
+
+The next step is to assign the required roles to the newly registered application. In my case, the application needs to be assigned the role: **Storage Blob Data Contributor**.
+
+- Go to Storage Account in the Access Control (IAM) menu and assign a role to the newly registered application
+
+<kbd><img src="doc/pic-14.png" /></kbd>
+<p style="text-align: center;"><a name="pic-14">pic-14</a></p>
+
+- U vkladtsi "Roles" znakhodymo vidpovidnu rolʹ (poshuk duzhe dopomahaye)
+68 / 5 000
+- In the "Roles" tab, find the appropriate role (searching helps a lot)
+
+<kbd><img src="doc/pic-15.png" /></kbd>
+<p style="text-align: center;"><a name="pic-15">pic-15</a></p>
+
+- Go to the "Members" tab and try to find our application
+
+<kbd><img src="doc/pic-16.png" /></kbd>
+<p style="text-align: center;"><a name="pic-16">pic-16</a></p>
+
+- Here you need to pay attention that the member Service Principal can only be found by search and only if you know exactly the postal symbols in the name. They are not displayed just like that. And you need to explicitly click on the found member with the mouse.
+
+<kbd><img src="doc/pic-17.png" /></kbd>
+<p style="text-align: center;"><a name="pic-17">pic-17</a></p>
+
+- As a result of a successful selection, we will see the following registration record. All that remains is to perform "Review + Assign"
+
+<kbd><img src="doc/pic-18.png" /></kbd>
+<p style="text-align: center;"><a name="pic-18">pic-18</a></p>
+
+
+- Check that the role is correctly assigned. To do this, go to "View Access to this Resource"
+
+<kbd><img src="doc/pic-19.png" /></kbd>
+<p style="text-align: center;"><a name="pic-19">pic-19</a></p>
+
+- We make sure that access is available
+
+<kbd><img src="doc/pic-20.png" /></kbd>
+<p style="text-align: center;"><a name="pic-20">pic-20</a></p>
