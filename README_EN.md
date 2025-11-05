@@ -622,3 +622,11 @@ The next step is to assign the required roles to the newly registered applicatio
 
 <kbd><img src="doc/pic-20.png" /></kbd>
 <p style="text-align: center;"><a name="pic-20">pic-20</a></p>
+
+
+### Interaction with Azure Storage Queue
+
+
+Node "readerQ" is a custom node, i.e. individually developed for this project. It consists of a configuration [pic-05](#pic-05) node for Blob Storage and an operational [pic-21](#pic-21). Storage Queue is tied to the same storage account as Blob Storage. Therefore, I did not create another application, but gave the application the role **Storage Queue Data Message Processor**.
+That is, you need to repeat exactly the same process as for Blob Storage.
+

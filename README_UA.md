@@ -620,7 +620,11 @@ Node "az_uploads" є custom node, тобто індивідуально розр
 <p style="text-align: center;"><a name="pic-20">pic-20</a></p>
 
 
+### Взаємодія з azure Storage Queue
 
+
+Node "readerQ" є custom node, тобто індивідуально розробленою для цього проекту. Складається з конфігураційної [pic-05](#pic-05) б тої зо і для Blob Storage і операційної [pic-21](#pic-21). Storage Queue  прив'язана з тим же storage account, що і Blob Storageю Тому я не створював ще одного додатку  а видав  додатку  роль **Storage Queue Data Message Processor**.
+Тобто, треба повторити точно такий же процес як і для  Blob Storage
 
 
 
