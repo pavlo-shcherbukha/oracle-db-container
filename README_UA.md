@@ -373,7 +373,7 @@ const oracledb = global.get('oracledb');
 // Створення конфігурації підключення до бази даних 
 const dbConfig = {
     user: "CUSTDOC",
-    password: "000000",
+    password: "******",
     connectString: "localhost:1521/XEPDB1" 
 };
 
