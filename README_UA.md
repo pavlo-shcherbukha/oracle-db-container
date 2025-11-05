@@ -314,6 +314,195 @@ jupyter notebook
    - потрібно налаштувати конфігураційний вузол для роботи з azure blob storage
 
    
+## Node-RED 
+
+### Flow: read-upload-blobs - читає з бази даних записи з Blob  полями та завантажуєе дані з Blob  на azure Blob Storage
+
+<kbd><img src="doc/pic-03.png" /></kbd>
+<p style="text-align: center;"><a name="pic-03">pic-03</a></p>
 
 
+
+### Flow: process-StorageQueue-Msg - process-StorageQueue-Msg Читає повідомлення із Azure Storage Queue  та записує елементи повідомлення в базу даних oracle (робить insert  в таблицю)
+
+<kbd><img src="doc/pic-04.png" /></kbd>
+<p style="text-align: center;"><a name="pic-04">pic-04</a></p>
+
+
+### Взаємодія з БД ORACLE
+
+Для взаємодії з БД ORACLE використовується офіційна бібліотека для Node.js  **node-oracledb**. Посилання на документацію: https://node-oracledb.readthedocs.io/ .
+використовується вона в функціональних Node. тому треба розуміти таке:
+- Кожна "Function Node"  сама створює і закриває підключення до БД. Це не дуже хороша практика, але для прототипу підійде.
+- Кожна транзакція, відкрита в "Function Node"  в ній і повинна закінчитися commit  або rollback.
+- Підключення бібліотеки для використання в "Function Node" виконується наступним чином
+
+1. Виконуємо традиційну для Node.js  інсталяцію пакету через npm
+
+```bash
+ npm install oracledb
+```
+
+2. Підключити бібліотеку в файлі settings.js
+
+```js
+   /** The following property can be used to set predefined values in Global Context.
+     * This allows extra node modules to be made available with in Function node.
+     * For example, the following:
+     *    functionGlobalContext: { os:require('os') }
+     * will allow the `os` module to be accessed in a Function node using:
+     *    global.get("os")
+     */
+    functionGlobalContext: {
+        // os:require('os'),
+        oracledb: require('oracledb'),
+        stream: require('stream'),
+        //util: require('util'),
+    },
+
+```
+ 
+3. В "Function Node" робимо кроки, відповідно до прокоментованого коду
+
+приклад взято  flow: read-upload-blobs,  findMigrRecords node.
+
+```js
+// Підключення бібіліотеки ORACLE
+const oracledb = global.get('oracledb');
+
+// Створення конфігурації підключення до бази даних 
+const dbConfig = {
+    user: "CUSTDOC",
+    password: "000000",
+    connectString: "localhost:1521/XEPDB1" 
+};
+
+// Оформляємо Async функцію для  виконання SQL
+async function executeQuery(msg) {
+    // перевірка наявності бібіліотеки ORACLE
+    if (!oracledb) {
+        msg.payload = { error: "oracledb is not loaded." };
+        return msg;
+    }
+
+    let connection;
+    try {
+        // Підключення до БД
+        connection = await oracledb.getConnection(dbConfig);
+
+        // Простий запит без параметрів
+        let sql=`SELECT A.CUSTID, A.IDDOC FROM CUSTDOC.CUST$DOCS  A 
+        WHERE NOT EXISTS( SELECT 1 FROM CUSTDOC.CUST$DOCS$URLS B WHERE  B.IDDOC=A.IDDOC) 
+        AND ISACRUAL='Y'
+        AND ROWNUM=1`
+
+	// Виконання запиту
+        const result = await connection.execute(
+            sql
+        );
+
+        // Аналіз та використання отриманого набору даних
+        if (result.rows.length === 0) {
+            node.warn(`No recors found!!!`);
+            return null;
+        }
+        const row = result.rows[0];
+        
+        msg.payload.custid = row[0];
+        msg.payload.iddoc = row[1];
+        
+        if (msg.payload.start) {
+            delete msg.payload.start;
+        }
+        return msg;
+        
+    } catch (err) {
+        const errorMessage = util.inspect(err);
+        node.error(`Oracle DB Error: ${errorMessage}`, msg);
+        msg.payload = { error: errorMessage };
+        return msg;
+    } finally {
+            // обов'язкового закриваємо підключення до БД
+            if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                node.warn(`Error closing connection: ${err.message}`);
+            }
+        }
+    }
+}
+
+// Повернення Promise для асинхронного виконання
+return executeQuery(msg);
+```
+
+Як працює транзакція, можна подивитися в flow: process-StorageQueue-Msg,   StoreToDabaBase NODE
+
+```js
+
+// Function Node code
+const oracledb = global.get('oracledb');
+
+const dbConfig = {
+    user: "CUSTDOC",
+    password: "*******",
+    connectString: "localhost:1521/XEPDB1" 
+};
+
+// Асинхронна обгортка для виконання запиту
+async function executeQuery(msg) {
+    if (!oracledb) {
+        msg.payload = { error: "oracledb is not loaded." };
+        return msg;
+    }
+
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        const sql = `INSERT INTO CUSTDOC.CUST$DOCS$URLS
+                     (IDFL, IDDOC, FILE_NAME, CONTAINER_NAME, CONTENT_TYPE, FILE_SIZE, FILE_URL)
+                     VALUES
+                     (:idfl, :iddoc, :blobname, :container_name, :content_type, :blob_size, :blob_url )`; 
+                     
+        const binds = {
+            idfl: msg.payload.queueMessageBody.customMetadata.fileid, 
+            iddoc: msg.payload.queueMessageBody.customMetadata.documentid ,
+            blobname: msg.payload.queueMessageBody.blobName, 
+            container_name: msg.payload.queueMessageBody.containerName,  
+            content_type: msg.payload.queueMessageBody.contentType, 
+            blob_size: msg.payload.queueMessageBody.blobSize,
+            blob_url: msg.payload.queueMessageBody.blobUrl
+        };
+
+        const result = await connection.execute(
+            sql,
+            binds
+        );
+
+        connection.commit();
+        msg.payload.ok = true;
+        msg.payload.text = 'Record migrated';
+        return msg;
+
+    } catch (err) {
+        const errorMessage = util.inspect(err);
+        node.error(`Oracle DB Error: ${errorMessage}`, msg);
+        msg.payload = { error: errorMessage };
+        return msg;
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                node.warn(`Error closing connection: ${err.message}`);
+            }
+        }
+    }
+}
+
+// Повернення Promise для асинхронного виконання
+return executeQuery(msg);
+
+```
 
