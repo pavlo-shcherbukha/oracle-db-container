@@ -312,3 +312,201 @@ npm run dev
 And, before working,
 - you need to replace ****** with your password to the database in the nodes that work with the ORACLE database
 - you need to configure the configuration node to work with azure blob storage
+
+
+## Node-RED 
+
+### Flow: read-upload-blobs - читає з бази даних записи з Blob  полями та завантажуєе дані з Blob  на azure Blob Storage
+
+<kbd><img src="doc/pic-03.png" /></kbd>
+<p style="text-align: center;"><a name="pic-03">pic-03</a></p>
+
+
+
+### Flow: process-StorageQueue-Msg - process-StorageQueue-Msg Читає повідомлення із Azure Storage Queue  та записує елементи повідомлення в базу даних oracle (робить insert  в таблицю)
+
+<kbd><img src="doc/pic-04.png" /></kbd>
+<p style="text-align: center;"><a name="pic-04">pic-04</a></p>
+
+
+### Interaction with ORACLE database
+
+To interact with the ORACLE database, the official Node.js library **node-oracledb** is used. Link to the documentation: https://node-oracledb.readthedocs.io/ .
+it is used in functional Node. so you need to understand the following:
+- Each "Function Node" itself creates and closes a connection to the database. This is not a very good practice, but it will work for a prototype.
+- Each transaction opened in a "Function Node" must end in a commit or rollback.
+- Connecting the library for use in a "Function Node" is done as follows
+
+
+
+
+1. We perform the traditional Node.js package installation via npm
+
+```bash
+ npm install oracledb
+```
+
+2. Include the library in the settings.js file
+
+```js
+   /** The following property can be used to set predefined values in Global Context.
+     * This allows extra node modules to be made available with in Function node.
+     * For example, the following:
+     *    functionGlobalContext: { os:require('os') }
+     * will allow the `os` module to be accessed in a Function node using:
+     *    global.get("os")
+     */
+    functionGlobalContext: {
+        // os:require('os'),
+        oracledb: require('oracledb'),
+        stream: require('stream'),
+        //util: require('util'),
+    },
+
+```
+ 
+3. In the "Function Node" we take steps according to the commented code
+
+The example has taken from  flow: read-upload-blobs, findMigrRecords node.
+
+```js
+// Connecting the ORACLE library
+const oracledb = global.get('oracledb');
+
+// Creating a database connection configuration
+const dbConfig = {
+    user: "CUSTDOC",
+    password: "******",
+    connectString: "localhost:1521/XEPDB1" 
+};
+
+// Create an Async function to execute SQL
+async function executeQuery(msg) {
+    // check for the presence of the ORACLE library
+    if (!oracledb) {
+        msg.payload = { error: "oracledb is not loaded." };
+        return msg;
+    }
+
+    let connection;
+    try {
+        // Connect to DB
+        connection = await oracledb.getConnection(dbConfig);
+
+        // The simple SQL - Query
+        let sql=`SELECT A.CUSTID, A.IDDOC FROM CUSTDOC.CUST$DOCS  A 
+        WHERE NOT EXISTS( SELECT 1 FROM CUSTDOC.CUST$DOCS$URLS B WHERE  B.IDDOC=A.IDDOC) 
+        AND ISACRUAL='Y'
+        AND ROWNUM=1`
+
+	    // Execute SQL
+        const result = await connection.execute(
+            sql
+        );
+
+        // Read Execution  results
+        if (result.rows.length === 0) {
+            node.warn(`No recors found!!!`);
+            return null;
+        }
+        const row = result.rows[0];
+        
+        msg.payload.custid = row[0];
+        msg.payload.iddoc = row[1];
+        
+        if (msg.payload.start) {
+            delete msg.payload.start;
+        }
+        return msg;
+        
+    } catch (err) {
+        const errorMessage = util.inspect(err);
+        node.error(`Oracle DB Error: ${errorMessage}`, msg);
+        msg.payload = { error: errorMessage };
+        return msg;
+    } finally {
+            // Close connection
+            if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                node.warn(`Error closing connection: ${err.message}`);
+            }
+        }
+    }
+}
+
+// Execute asiync  function
+return executeQuery(msg);
+```
+
+You can see how the transaction works in flow: process-StorageQueue-Msg, StoreToDabaBase NODE
+
+```js
+
+// Function Node code
+const oracledb = global.get('oracledb');
+
+const dbConfig = {
+    user: "CUSTDOC",
+    password: "*******",
+    connectString: "localhost:1521/XEPDB1" 
+};
+
+// Asinc SQL execution
+async function executeQuery(msg) {
+    if (!oracledb) {
+        msg.payload = { error: "oracledb is not loaded." };
+        return msg;
+    }
+
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        const sql = `INSERT INTO CUSTDOC.CUST$DOCS$URLS
+                     (IDFL, IDDOC, FILE_NAME, CONTAINER_NAME, CONTENT_TYPE, FILE_SIZE, FILE_URL)
+                     VALUES
+                     (:idfl, :iddoc, :blobname, :container_name, :content_type, :blob_size, :blob_url )`; 
+                     
+        const binds = {
+            idfl: msg.payload.queueMessageBody.customMetadata.fileid, 
+            iddoc: msg.payload.queueMessageBody.customMetadata.documentid ,
+            blobname: msg.payload.queueMessageBody.blobName, 
+            container_name: msg.payload.queueMessageBody.containerName,  
+            content_type: msg.payload.queueMessageBody.contentType, 
+            blob_size: msg.payload.queueMessageBody.blobSize,
+            blob_url: msg.payload.queueMessageBody.blobUrl
+        };
+
+        const result = await connection.execute(
+            sql,
+            binds
+        );
+
+        connection.commit();
+        msg.payload.ok = true;
+        msg.payload.text = 'Record migrated';
+        return msg;
+
+    } catch (err) {
+        const errorMessage = util.inspect(err);
+        node.error(`Oracle DB Error: ${errorMessage}`, msg);
+        msg.payload = { error: errorMessage };
+        return msg;
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                node.warn(`Error closing connection: ${err.message}`);
+            }
+        }
+    }
+}
+
+// Execute and return async result
+return executeQuery(msg);
+
+```
+
+Also, the read-upload-blobs flow in Node "readBlob" shows how to read a Blolb field from the database and transform it into a Buffer type acceptable to Node-Red (Node.js). The library passes the field value as a stream, and it needs to be read and converted to a Node Buffer.

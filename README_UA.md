@@ -506,3 +506,5 @@ return executeQuery(msg);
 
 ```
 
+Також, у flow read-upload-blobs в Node "readBlob" показано як прочитати Blolb поле з БД та трансформувати його в прийнятний для Node-Red (Node.js) тип Bufer.
+Бібліотка значення поля передає як streem,  і його треба вичитати та перетворити до Node Buffer.
